@@ -43,7 +43,7 @@ function App() {
     } else {
       // ADMIN LOGIC: Subscribe to all cloud updates
       const unsubscribe = apiService.subscribeToFleet((allVehicles) => {
-        setFleet(allVehicles.length > 0 ? allVehicles : generateMockFleet());
+        setFleet(allVehicles); // Only show real data, no more mocks
       });
       return () => unsubscribe();
     }
