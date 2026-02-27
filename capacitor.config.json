@@ -1,0 +1,5 @@
+{
+  "appId": "com.empresa.fleet",
+  "appName": "Fleet Tracking",
+  "webDir": "dist"
+}
