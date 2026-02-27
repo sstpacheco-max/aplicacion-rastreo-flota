@@ -4,34 +4,55 @@ import MapView from './components/MapView';
 import FleetDashboard from './components/FleetDashboard';
 import Login from './components/Login';
 import { generateMockFleet } from './utils/vehicleMock';
+import { gpsService } from './utils/gpsService';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [fleet, setFleet] = useState(generateMockFleet());
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [watchId, setWatchId] = useState(null);
 
-  // Simulate real-time updates
+  // Real-time GPS Tracking
   useEffect(() => {
     if (!isLoggedIn) return;
 
-    const interval = setInterval(() => {
-      setFleet(prevFleet => prevFleet.map(v => {
-        const speedChange = (Math.random() - 0.5) * 10;
-        const newSpeed = Math.max(0, Math.min(120, v.speed + speedChange));
+    const initializeTracking = async () => {
+      const hasPermission = await gpsService.requestPermissions();
+      if (!hasPermission) return;
 
-        const newLat = v.location[0] + (Math.random() - 0.5) * 0.001;
-        const newLng = v.location[1] + (Math.random() - 0.5) * 0.001;
+      const id = await gpsService.startTracking((pos) => {
+        setFleet(prevFleet => {
+          // We'll treat the first vehicle as the 'current device' for demo/API integration
+          const newFleet = [...prevFleet];
+          if (newFleet.length > 0) {
+            newFleet[0] = {
+              ...newFleet[0],
+              location: [pos.lat, pos.lng],
+              speed: pos.speed,
+              status: pos.speed > 80 ? 'speeding' : 'active',
+              lastUpdate: pos.timestamp
+            };
+          }
 
-        return {
-          ...v,
-          speed: Math.round(newSpeed),
-          location: [newLat, newLng],
-          status: newSpeed > 80 ? 'speeding' : 'active'
-        };
-      }));
-    }, 2000);
+          // Keep simulating others but with less aggressive movements
+          for (let i = 1; i < newFleet.length; i++) {
+            const v = newFleet[i];
+            const newLat = v.location[0] + (Math.random() - 0.5) * 0.0005;
+            const newLng = v.location[1] + (Math.random() - 0.5) * 0.0005;
+            newFleet[i] = { ...v, location: [newLat, newLng] };
+          }
 
-    return () => clearInterval(interval);
+          return newFleet;
+        });
+      });
+      setWatchId(id);
+    };
+
+    initializeTracking();
+
+    return () => {
+      if (watchId) gpsService.stopTracking(watchId);
+    };
   }, [isLoggedIn]);
 
   const handleLogin = () => {
