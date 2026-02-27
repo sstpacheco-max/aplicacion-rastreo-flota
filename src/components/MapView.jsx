@@ -44,7 +44,9 @@ const MapView = ({ fleet, selectedVehicle }) => {
         <MapContainer
             center={[4.6097, -74.0817]}
             zoom={12}
+            className="map-view-container"
             style={{ height: '100%', width: '100%' }}
+            zoomControl={false} // Cleaner UI for mobile
         >
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'

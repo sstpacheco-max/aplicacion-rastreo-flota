@@ -6,7 +6,7 @@ const FleetDashboard = ({ fleet, onSelect, selectedId, onLogout }) => {
 
     return (
         <div className="sidebar">
-            <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
+            <div className="sidebar-header" style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
                 <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.25rem' }}>
                     <ShieldCheck color="var(--accent-color)" /> Fleet Manager
                 </h2>
