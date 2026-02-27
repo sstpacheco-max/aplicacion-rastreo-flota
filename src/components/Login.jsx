@@ -4,14 +4,26 @@ import { ShieldCheck, Lock, User } from 'lucide-react';
 const Login = ({ onLogin }) => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [role, setRole] = useState('driver'); // Default to driver for mobile users
     const [error, setError] = useState('');
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (username === 'admin' && password === 'admin123') {
-            onLogin();
+
+        // Simple authentication logic
+        if (role === 'admin') {
+            if (username === 'admin' && password === 'admin123') {
+                onLogin({ username, role: 'admin' });
+            } else {
+                setError('Credenciales de Admin incorrectas.');
+            }
         } else {
-            setError('Credenciales incorrectas. Intente con admin / admin123');
+            // Drivers can login with any username for this demo, or we can add specific ones
+            if (password === 'driver123') {
+                onLogin({ username, role: 'driver' });
+            } else {
+                setError('Contraseña de conductor incorrecta (prueba: driver123)');
+            }
         }
     };
 
@@ -20,20 +32,51 @@ const Login = ({ onLogin }) => {
             <div className="login-card">
                 <div className="login-header">
                     <ShieldCheck size={48} color="#3b82f6" style={{ margin: '0 auto 1rem' }} />
-                    <h1>Admin Access</h1>
-                    <p style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>
-                        Fleet Tracking System v1.0
-                    </p>
+                    <h1>Fleet Access</h1>
+                    <div style={{
+                        display: 'flex',
+                        background: 'rgba(255,255,255,0.05)',
+                        borderRadius: '10px',
+                        padding: '4px',
+                        marginBottom: '1.5rem'
+                    }}>
+                        <button
+                            onClick={() => setRole('driver')}
+                            style={{
+                                flex: 1,
+                                padding: '8px',
+                                border: 'none',
+                                borderRadius: '8px',
+                                background: role === 'driver' ? 'var(--accent-color)' : 'transparent',
+                                color: 'white',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >Conductor</button>
+                        <button
+                            onClick={() => setRole('admin')}
+                            style={{
+                                flex: 1,
+                                padding: '8px',
+                                border: 'none',
+                                borderRadius: '8px',
+                                background: role === 'admin' ? 'var(--accent-color)' : 'transparent',
+                                color: 'white',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >Admin</button>
+                    </div>
                 </div>
 
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
-                        <label>Usuario</label>
+                        <label>{role === 'admin' ? 'Usuario Admin' : 'ID de Conductor'}</label>
                         <div style={{ position: 'relative' }}>
                             <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)' }} />
                             <input
                                 type="text"
-                                placeholder="Nombre de usuario"
+                                placeholder={role === 'admin' ? "admin" : "Nombre o Placa"}
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 style={{ paddingLeft: '2.5rem' }}
@@ -64,7 +107,7 @@ const Login = ({ onLogin }) => {
                     )}
 
                     <button type="submit" className="login-button">
-                        Iniciar Sesión
+                        Entrar como {role === 'admin' ? 'Administrador' : 'Conductor'}
                     </button>
                 </form>
 
