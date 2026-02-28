@@ -20,14 +20,12 @@ export const apiService = {
                 lastSeen: Date.now()
             });
 
+            // Using simple fetch to avoid preflight issues if possible
             await fetch(NTFY_URL, {
                 method: 'POST',
-                body: payload,
-                headers: {
-                    'Title': `Vehicle ${vehicleData.id}`,
-                    'Tags': 'car'
-                }
+                body: payload
             });
+            console.log(`Sync: Update sent for ${vehicleData.id}`);
         } catch (e) {
             console.error('Error sending position:', e);
         }
@@ -42,41 +40,38 @@ export const apiService = {
 
         const connect = () => {
             console.log('Connecting to fleet tracking cloud...');
-            eventSource = new EventSource(`${NTFY_URL}/sse`);
+            // poll=1: Returns the last message immediately upon connection
+            eventSource = new EventSource(`${NTFY_URL}/sse?poll=1`);
 
             eventSource.addEventListener('message', (event) => {
                 try {
                     const ntfyMsg = JSON.parse(event.data);
 
-                    // ntfyMsg.message is the JSON string sent by the driver
                     if (ntfyMsg.message) {
                         const vehicleData = JSON.parse(ntfyMsg.message);
-
-                        // Use ntfy server time (message.time) as the source of truth
-                        // to avoid issues with different device clocks.
                         vehicleData.lastSeenServer = ntfyMsg.time;
                         localFleet[vehicleData.id] = vehicleData;
 
-                        // Filter: only show vehicles active in the last 30 minutes
-                        // (ntfyMsg.time provides the current server unix timestamp)
+                        // Filter: only show vehicles active in the last 1 hour (3600s)
+                        // This accounts for intermittent network issues better than 30m.
                         const activeVehicles = Object.values(localFleet).filter(v =>
-                            (ntfyMsg.time - (v.lastSeenServer || 0)) < 1800
+                            (ntfyMsg.time - (v.lastSeenServer || 0)) < 3600
                         );
 
-                        console.log(`Received update from ${vehicleData.id}. Active fleet: ${activeVehicles.length}`);
+                        console.log(`Cloud update: ${vehicleData.id}. Active fleet: ${activeVehicles.length}`);
                         callback(activeVehicles);
                     }
                 } catch (e) {
-                    console.debug('Received non-vehicle message:', event.data);
+                    // Ignore non-json or system messages
                 }
             });
 
             eventSource.addEventListener('open', () => {
-                console.log('SSE Connection established successfully.');
+                console.log('Fleet cloud connection established.');
             });
 
             eventSource.addEventListener('error', (e) => {
-                console.error('SSE Connection error. Reconnecting in 5s...');
+                console.error('Connection lost. Retrying...');
                 eventSource.close();
                 setTimeout(connect, 5000);
             });
@@ -84,10 +79,8 @@ export const apiService = {
 
         connect();
 
-        // Return unsubscribe function
         return () => {
             if (eventSource) {
-                console.log('Closing fleet subscription.');
                 eventSource.close();
             }
         };
