@@ -6,8 +6,8 @@
  * Works in ANY browser with simple fetch() calls.
  */
 
-const CHANNEL = 'fleet_pacheco_rastreo_2026';
-const NTFY_URL = `https://ntfy.sh/${CHANNEL}`;
+const CHANNEL = 'fleet_pacheco_2026_v4';
+const NTFY_URL = `https://ntfy.tedomum.net/${CHANNEL}`;
 
 export const apiService = {
     /**
