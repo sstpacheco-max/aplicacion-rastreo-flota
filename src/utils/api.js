@@ -1,50 +1,79 @@
 /**
- * Simple API service for data synchronization.
- * In a real-world scenario, this would connect to a backend like Firebase, Supabase, or a Node.js API.
+ * API Service - Real-Time Sync via ntfy.sh
+ * 
+ * ntfy.sh is a free, zero-config push notification service.
+ * Driver POSTS location data → ntfy.sh relays it instantly → Admin receives via SSE stream.
+ * Works in ANY browser with simple fetch() calls.
  */
 
-// Simulated cloud database (stored in localStorage for persistence across tabs/users for demo)
-const CLOUD_STORAGE_KEY = 'fleet_cloud_data';
-
-const getCloudData = () => {
-    const data = localStorage.getItem(CLOUD_STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-};
-
-const saveCloudData = (data) => {
-    localStorage.setItem(CLOUD_STORAGE_KEY, JSON.stringify(data));
-};
+const CHANNEL = 'fleet_pacheco_rastreo_2026';
+const NTFY_URL = `https://ntfy.sh/${CHANNEL}`;
 
 export const apiService = {
     /**
-     * Update a vehicle's position in the "cloud"
+     * Driver: Send vehicle position to the cloud
      */
     updateVehicle: async (vehicleData) => {
-        const cloudData = getCloudData();
-        cloudData[vehicleData.id] = {
-            ...vehicleData,
-            lastSeen: new Date().toISOString()
-        };
-        saveCloudData(cloudData);
-        return true;
+        try {
+            const payload = JSON.stringify({
+                ...vehicleData,
+                lastSeen: Date.now()
+            });
+
+            await fetch(NTFY_URL, {
+                method: 'POST',
+                body: payload,
+                headers: {
+                    'Title': `Vehicle ${vehicleData.id}`,
+                    'Tags': 'car'
+                }
+            });
+        } catch (e) {
+            console.error('Error sending position:', e);
+        }
     },
 
     /**
-     * Fetch all vehicles from the "cloud"
-     */
-    fetchAllVehicles: async () => {
-        const cloudData = getCloudData();
-        return Object.values(cloudData);
-    },
-
-    /**
-     * Subscribe to updates (simulating a WebSocket or long polling)
+     * Admin: Subscribe to real-time vehicle updates via Server-Sent Events (SSE)
      */
     subscribeToFleet: (callback) => {
-        const interval = setInterval(async () => {
-            const data = await apiService.fetchAllVehicles();
-            callback(data);
-        }, 3000);
-        return () => clearInterval(interval);
+        const localFleet = {};
+        let eventSource = null;
+
+        try {
+            // SSE stream - receives messages in real-time as they arrive
+            eventSource = new EventSource(`${NTFY_URL}/sse`);
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const ntfyMsg = JSON.parse(event.data);
+                    if (ntfyMsg.message) {
+                        const vehicleData = JSON.parse(ntfyMsg.message);
+                        localFleet[vehicleData.id] = vehicleData;
+
+                        // Filter: only vehicles active in last 2 minutes
+                        const activeVehicles = Object.values(localFleet).filter(v =>
+                            (Date.now() - v.lastSeen) < 120000
+                        );
+                        callback(activeVehicles);
+                    }
+                } catch (e) {
+                    // Ignore non-JSON messages
+                }
+            };
+
+            eventSource.onerror = (e) => {
+                console.error('SSE connection error, will auto-reconnect...');
+            };
+        } catch (e) {
+            console.error('Error setting up SSE:', e);
+        }
+
+        // Return unsubscribe function
+        return () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+        };
     }
 };

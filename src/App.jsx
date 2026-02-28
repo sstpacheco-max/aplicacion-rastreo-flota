@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './index.css';
 import MapView from './components/MapView';
 import FleetDashboard from './components/FleetDashboard';
+import SpeedDashboard from './components/SpeedDashboard';
 import Login from './components/Login';
 import { generateMockFleet } from './utils/vehicleMock';
 import { gpsService } from './utils/gpsService';
@@ -12,34 +13,74 @@ function App() {
   const [auth, setAuth] = useState(null); // { username, role }
   const [fleet, setFleet] = useState([]);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [adminView, setAdminView] = useState('map'); // 'map' or 'speed'
+  const [speedingLog, setSpeedingLog] = useState(() => {
+    const saved = localStorage.getItem('fleet_speeding_log');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [speedLimit, setSpeedLimit] = useState(60); // Default city limit
+  const [dailyStats, setDailyStats] = useState(() => {
+    const saved = localStorage.getItem('fleet_daily_stats');
+    const today = new Date().toISOString().split('T')[0];
+    const data = saved ? JSON.parse(saved) : {};
+    return data[today] ? data : { [today]: {} };
+  });
   const [watchId, setWatchId] = useState(null);
+  const lastPosRef = useRef(null);
 
   // role-based side effects
   useEffect(() => {
     if (!auth) return;
 
     if (auth.role === 'driver') {
-      // DRIVER LOGIC: Follow GPS even in background and push to cloud
+      let intervalId = null;
+
       const startDriverTracking = async () => {
         const hasPermission = await gpsService.requestPermissions();
         if (!hasPermission) return;
 
+        // 1. Get continuous positions in background
         const id = await gpsService.startBackgroundTracking((pos) => {
-          const driverData = {
+          lastPosRef.current = pos;
+          // Update local UI immediately for responsiveness
+          setFleet([{
             id: auth.username,
-            name: `Vehículo: ${auth.username}`,
+            name: `Conductor: ${auth.driverName}`,
             driver: auth.username,
             location: [pos.lat, pos.lng],
             speed: pos.speed,
-            status: pos.speed > 80 ? 'speeding' : 'active',
+            status: pos.speed > 60 ? 'speeding' : 'active',
             lastUpdate: pos.timestamp
-          };
-          apiService.updateVehicle(driverData);
-          setFleet([driverData]);
+          }]);
         });
         setWatchId(id);
+
+        // 2. FORCE 1-SECOND SYNC REFRESH RATE
+        intervalId = setInterval(() => {
+          if (lastPosRef.current) {
+            const pos = lastPosRef.current;
+            const driverData = {
+              id: auth.username,
+              name: `Conductor: ${auth.driverName}`,
+              driver: auth.username,
+              location: [pos.lat, pos.lng],
+              speed: pos.speed,
+              status: pos.speed > 60 ? 'speeding' : 'active',
+              lastUpdate: pos.timestamp
+            };
+            apiService.updateVehicle(driverData);
+          }
+        }, 1000); // 1-second interval
       };
+
       startDriverTracking();
+
+      return () => {
+        if (intervalId) clearInterval(intervalId);
+        if (watchId) {
+          gpsService.stopBackgroundTracking(watchId);
+        }
+      };
     } else {
       // ADMIN LOGIC: Subscribe to all cloud updates
       const unsubscribe = apiService.subscribeToFleet((allVehicles) => {
@@ -55,6 +96,107 @@ function App() {
       }
     };
   }, [auth]);
+
+  // Distance calculation (Haversine formula)
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
+
+  // Persist speeding log and daily stats
+  useEffect(() => {
+    localStorage.setItem('fleet_speeding_log', JSON.stringify(speedingLog));
+  }, [speedingLog]);
+
+  useEffect(() => {
+    localStorage.setItem('fleet_daily_stats', JSON.stringify(dailyStats));
+  }, [dailyStats]);
+
+  // Monitor for distance and speeding
+  useEffect(() => {
+    if (auth?.role !== 'admin' || fleet.length === 0) return;
+
+    const today = new Date().toISOString().split('T')[0];
+
+    setDailyStats(prev => {
+      const dayData = prev[today] || {};
+      let changed = false;
+      const newDayData = { ...dayData };
+
+      fleet.forEach(vehicle => {
+        const vId = vehicle.id;
+        const currentPos = vehicle.location; // [lat, lng]
+
+        if (!currentPos || !Array.isArray(currentPos)) return;
+
+        const vStats = newDayData[vId] || { distance: 0, lastPos: null };
+
+        if (vStats.lastPos) {
+          const dist = calculateDistance(
+            vStats.lastPos[0], vStats.lastPos[1],
+            currentPos[0], currentPos[1]
+          );
+
+          // Only add if movement is significant (> 10 meters) to avoid GPS jitter
+          if (dist > 0.01) {
+            newDayData[vId] = {
+              distance: vStats.distance + dist,
+              lastPos: currentPos
+            };
+            changed = true;
+          }
+        } else {
+          newDayData[vId] = {
+            ...vStats,
+            lastPos: currentPos
+          };
+          changed = true;
+        }
+      });
+
+      return changed ? { ...prev, [today]: newDayData } : prev;
+    });
+
+    // Speeding Logic
+    fleet.forEach(vehicle => {
+      if (vehicle.speed > speedLimit) {
+        setSpeedingLog(prev => {
+          // Avoid duplicate alerts within 30 seconds for same vehicle
+          const recentAlert = prev.find(a =>
+            a.vehicleId === vehicle.id && (Date.now() - a.timestamp) < 30000
+          );
+          if (recentAlert) return prev;
+
+          const newAlert = {
+            id: `${vehicle.id}-${Date.now()}`,
+            vehicleId: vehicle.id,
+            vehicleName: vehicle.name || vehicle.id,
+            driver: vehicle.driver || 'Desconocido',
+            speed: vehicle.speed,
+            limit: speedLimit,
+            excess: vehicle.speed - speedLimit,
+            time: new Date().toLocaleTimeString(),
+            timestamp: Date.now()
+          };
+          return [newAlert, ...prev].slice(0, 1000); // Keep up to 1000 records
+        });
+      }
+    });
+  }, [fleet, speedLimit, auth]);
+
+  const handleClearLog = () => {
+    if (window.confirm('¿Está seguro de que desea borrar todos los registros de excesos de velocidad?')) {
+      setSpeedingLog([]);
+    }
+  };
 
   const handleLogin = (userData) => {
     setAuth(userData);
@@ -76,7 +218,10 @@ function App() {
       <div className="driver-view app-container" style={{ padding: '2rem', textAlign: 'center' }}>
         <div className="glass-card" style={{ padding: '2rem', maxWidth: '400px', margin: 'auto' }}>
           <h2 style={{ color: 'var(--accent-color)' }}>Tracking Activo</h2>
-          <p>Conectado como: <strong>{auth.username}</strong></p>
+          <div style={{ margin: '1.5rem 0', textAlign: 'left' }}>
+            <p style={{ margin: '0.5rem 0' }}>Conductor: <strong>{auth.driverName}</strong></p>
+            <p style={{ margin: '0.5rem 0' }}>Vehículo (Placa): <strong>{auth.username}</strong></p>
+          </div>
 
           <div className="stats-grid" style={{ marginTop: '2rem' }}>
             <div className="stat-card">
@@ -89,7 +234,7 @@ function App() {
           </div>
 
           <div style={{ marginTop: '2rem', color: 'var(--text-dim)', fontSize: '0.8rem' }}>
-            <p>Tu ubicación está siendo enviada al centro de control en tiempo real.</p>
+            <p>Tu ubicación y velocidad están siendo monitoreadas.</p>
           </div>
 
           <button
@@ -103,6 +248,19 @@ function App() {
   }
 
   // --- Admin Dashboard Rendering ---
+  if (adminView === 'speed') {
+    return (
+      <SpeedDashboard
+        fleet={fleet}
+        onBack={() => setAdminView('map')}
+        speedingLog={speedingLog}
+        speedLimit={speedLimit}
+        onSetLimit={(l) => setSpeedLimit(l)}
+        onClearLog={handleClearLog}
+      />
+    );
+  }
+
   return (
     <div className="app-container">
       <FleetDashboard
@@ -110,6 +268,9 @@ function App() {
         onSelect={setSelectedVehicle}
         selectedId={selectedVehicle?.id}
         onLogout={handleLogout}
+        onSpeedDashboard={() => setAdminView('speed')}
+        speedingLogCount={speedingLog.length}
+        dailyStats={dailyStats[new Date().toISOString().split('T')[0]] || {}}
       />
       <div className="map-container">
         <MapView
