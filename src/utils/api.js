@@ -40,38 +40,54 @@ export const apiService = {
         const localFleet = {};
         let eventSource = null;
 
-        try {
-            // SSE stream - receives messages in real-time as they arrive
+        const connect = () => {
+            console.log('Connecting to fleet tracking cloud...');
             eventSource = new EventSource(`${NTFY_URL}/sse`);
 
-            eventSource.onmessage = (event) => {
+            eventSource.addEventListener('message', (event) => {
                 try {
                     const ntfyMsg = JSON.parse(event.data);
+
+                    // ntfyMsg.message is the JSON string sent by the driver
                     if (ntfyMsg.message) {
                         const vehicleData = JSON.parse(ntfyMsg.message);
+
+                        // Use ntfy server time (message.time) as the source of truth
+                        // to avoid issues with different device clocks.
+                        vehicleData.lastSeenServer = ntfyMsg.time;
                         localFleet[vehicleData.id] = vehicleData;
 
-                        // Filter: only vehicles active in last 10 minutes (more lenient for mobile signals)
+                        // Filter: only show vehicles active in the last 30 minutes
+                        // (ntfyMsg.time provides the current server unix timestamp)
                         const activeVehicles = Object.values(localFleet).filter(v =>
-                            (Date.now() - (v.lastSeen || 0)) < 600000
+                            (ntfyMsg.time - (v.lastSeenServer || 0)) < 1800
                         );
+
+                        console.log(`Received update from ${vehicleData.id}. Active fleet: ${activeVehicles.length}`);
                         callback(activeVehicles);
                     }
                 } catch (e) {
-                    // Ignore non-JSON messages
+                    console.debug('Received non-vehicle message:', event.data);
                 }
-            };
+            });
 
-            eventSource.onerror = (e) => {
-                console.error('SSE connection error, will auto-reconnect...');
-            };
-        } catch (e) {
-            console.error('Error setting up SSE:', e);
-        }
+            eventSource.addEventListener('open', () => {
+                console.log('SSE Connection established successfully.');
+            });
+
+            eventSource.addEventListener('error', (e) => {
+                console.error('SSE Connection error. Reconnecting in 5s...');
+                eventSource.close();
+                setTimeout(connect, 5000);
+            });
+        };
+
+        connect();
 
         // Return unsubscribe function
         return () => {
             if (eventSource) {
+                console.log('Closing fleet subscription.');
                 eventSource.close();
             }
         };
