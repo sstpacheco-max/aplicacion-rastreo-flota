@@ -36,43 +36,43 @@ function App() {
       let intervalId = null;
 
       const startDriverTracking = async () => {
-        const hasPermission = await gpsService.requestPermissions();
-        if (!hasPermission) return;
+        // Default position (Bogotá center) to use when GPS isn't available
+        const defaultPos = { lat: 4.6097, lng: -74.0817, speed: 0, timestamp: Date.now() };
 
-        // 1. Get continuous positions in background
-        const id = await gpsService.startBackgroundTracking((pos) => {
-          lastPosRef.current = pos;
-          // Update local UI immediately for responsiveness
-          setFleet([{
-            id: auth.username,
-            name: auth.driverName,
-            driver: auth.driverName,
-            plate: auth.username,
-            location: [pos.lat, pos.lng],
-            speed: pos.speed,
-            status: pos.speed > 60 ? 'speeding' : 'active',
-            lastUpdate: pos.timestamp
-          }]);
+        const buildDriverData = (pos) => ({
+          id: auth.username,
+          name: auth.driverName,
+          driver: auth.driverName,
+          plate: auth.username,
+          location: [pos.lat, pos.lng],
+          speed: pos.speed,
+          status: pos.speed > 60 ? 'speeding' : 'active',
+          lastUpdate: pos.timestamp
         });
-        setWatchId(id);
 
-        // 2. FORCE 1-SECOND SYNC REFRESH RATE
+        // 1. Send an IMMEDIATE heartbeat so the driver appears instantly in admin
+        lastPosRef.current = defaultPos;
+        const initialData = buildDriverData(defaultPos);
+        setFleet([initialData]);
+        apiService.updateVehicle(initialData);
+
+        // 2. Start GPS in the background to get real coordinates
+        gpsService.requestPermissions().then(() => {
+          gpsService.startBackgroundTracking((pos) => {
+            lastPosRef.current = pos;
+            setFleet([buildDriverData(pos)]);
+          }).then(id => setWatchId(id))
+            .catch(err => console.warn('GPS unavailable, using default location:', err));
+        });
+
+        // 3. Sync interval — always fires, uses GPS pos if available, otherwise default
         intervalId = setInterval(() => {
-          if (lastPosRef.current) {
-            const pos = lastPosRef.current;
-            const driverData = {
-              id: auth.username,
-              name: auth.driverName,
-              driver: auth.driverName,
-              plate: auth.username,
-              location: [pos.lat, pos.lng],
-              speed: pos.speed,
-              status: pos.speed > 60 ? 'speeding' : 'active',
-              lastUpdate: pos.timestamp
-            };
-            apiService.updateVehicle(driverData);
-          }
-        }, 5000); // 5-second interval (Stable)
+          const pos = lastPosRef.current || defaultPos;
+          pos.timestamp = Date.now(); // keep timestamp fresh
+          const driverData = buildDriverData(pos);
+          setFleet([driverData]);
+          apiService.updateVehicle(driverData);
+        }, 5000);
       };
 
       startDriverTracking();
