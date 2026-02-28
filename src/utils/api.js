@@ -40,8 +40,8 @@ export const apiService = {
 
         const connect = () => {
             console.log('Connecting to fleet tracking cloud...');
-            // poll=1: Returns the last message immediately upon connection
-            eventSource = new EventSource(`${NTFY_URL}/sse?poll=1`);
+            // since=30m: Returns all messages from the last 30 minutes and keeps the connection open
+            eventSource = new EventSource(`${NTFY_URL}/sse?since=30m`);
 
             eventSource.addEventListener('message', (event) => {
                 try {

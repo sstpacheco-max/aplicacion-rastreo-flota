@@ -219,7 +219,16 @@ function App() {
     return (
       <div className="driver-view app-container" style={{ padding: '2rem', textAlign: 'center' }}>
         <div className="glass-card" style={{ padding: '2rem', maxWidth: '400px', margin: 'auto' }}>
-          <h2 style={{ color: 'var(--accent-color)' }}>Tracking Activo</h2>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <div className="status-dot pulsing" style={{
+              width: '12px',
+              height: '12px',
+              borderRadius: '50%',
+              background: 'var(--success)',
+              boxShadow: '0 0 10px var(--success)'
+            }}></div>
+            <h2 style={{ color: 'var(--accent-color)', margin: 0 }}>Tracking Activo</h2>
+          </div>
           <div style={{ margin: '1.5rem 0', textAlign: 'left' }}>
             <p style={{ margin: '0.5rem 0' }}>Conductor: <strong>{auth.driverName}</strong></p>
             <p style={{ margin: '0.5rem 0' }}>Vehículo (Placa): <strong>{auth.username}</strong></p>
