@@ -1,7 +1,7 @@
 import React from 'react';
 import { Truck, Navigation, AlertTriangle, ShieldCheck, User, MapPin, LogOut, Gauge } from 'lucide-react';
 
-const FleetDashboard = ({ fleet, onSelect, selectedId, onLogout, speedingLogCount, dailyStats }) => {
+const FleetDashboard = ({ fleet, onSelect, selectedId, onLogout, speedingLogCount, dailyStats, onShowRouteHistory }) => {
     const speedingCountNow = fleet.filter(v => v.status === 'speeding').length;
 
     return (
@@ -116,7 +116,14 @@ const FleetDashboard = ({ fleet, onSelect, selectedId, onLogout, speedingLogCoun
                 })}
             </div>
 
-            <div className="logout-container">
+            <div className="logout-container" style={{ flexDirection: 'column', gap: '0.5rem' }}>
+                <button
+                    className="logout-btn"
+                    onClick={onShowRouteHistory}
+                    style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa', borderColor: 'rgba(59,130,246,0.3)' }}
+                >
+                    📍 Historial de Ruta
+                </button>
                 <button className="logout-btn" onClick={onLogout}>
                     <LogOut size={16} /> Cerrar Sesión
                 </button>

@@ -4,16 +4,17 @@ import MapView from './components/MapView';
 import FleetDashboard from './components/FleetDashboard';
 import SpeedDashboard from './components/SpeedDashboard';
 import Login from './components/Login';
+import RouteHistory, { saveRoutePoint } from './components/RouteHistory';
 import { generateMockFleet } from './utils/vehicleMock';
 import { gpsService } from './utils/gpsService';
-
 import { apiService } from './utils/api';
 
 function App() {
-  const [auth, setAuth] = useState(null); // { username, role }
+  const [auth, setAuth] = useState(null);
   const [fleet, setFleet] = useState([]);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
-  const [adminView, setAdminView] = useState('map'); // 'map' or 'speed'
+  const [adminView, setAdminView] = useState('map');
+  const [showRouteHistory, setShowRouteHistory] = useState(false);
   const [speedingLog, setSpeedingLog] = useState(() => {
     const saved = localStorage.getItem('fleet_speeding_log');
     return saved ? JSON.parse(saved) : [];
@@ -86,7 +87,16 @@ function App() {
     } else {
       // ADMIN LOGIC: Subscribe to all cloud updates
       const unsubscribe = apiService.subscribeToFleet((allVehicles) => {
-        setFleet(allVehicles); // Only show real data, no more mocks
+        setFleet(allVehicles);
+        // Save each vehicle's position for route history
+        allVehicles.forEach(v => {
+          if (v.location && Array.isArray(v.location)) {
+            saveRoutePoint(v.id, {
+              lat: v.location[0], lng: v.location[1],
+              speed: v.speed || 0, time: v.lastUpdate || Date.now()
+            });
+          }
+        });
       });
       return () => unsubscribe();
     }
@@ -261,6 +271,9 @@ function App() {
   // --- Admin Dashboard Rendering ---
   return (
     <div className="app-container">
+      {showRouteHistory && (
+        <RouteHistory fleet={fleet} onClose={() => setShowRouteHistory(false)} />
+      )}
       <FleetDashboard
         fleet={fleet}
         onSelect={setSelectedVehicle}
@@ -268,6 +281,7 @@ function App() {
         onLogout={handleLogout}
         speedingLogCount={speedingLog.length}
         dailyStats={dailyStats[new Date().toISOString().split('T')[0]] || {}}
+        onShowRouteHistory={() => setShowRouteHistory(true)}
       />
       <div style={{
         position: 'fixed',

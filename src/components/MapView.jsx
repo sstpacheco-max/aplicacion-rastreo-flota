@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -39,7 +39,7 @@ function ChangeView({ center, zoom }) {
     return null;
 }
 
-const MapView = ({ fleet, selectedVehicle }) => {
+const MapView = ({ fleet, selectedVehicle, routePolyline }) => {
     return (
         <MapContainer
             center={[4.6097, -74.0817]}
@@ -69,6 +69,10 @@ const MapView = ({ fleet, selectedVehicle }) => {
                     </Popup>
                 </Marker>
             ))}
+
+            {routePolyline && routePolyline.length > 1 && (
+                <Polyline positions={routePolyline} pathOptions={{ color: '#f59e0b', weight: 4, opacity: 0.9, dashArray: '8,4' }} />
+            )}
 
             {selectedVehicle && (
                 <ChangeView center={selectedVehicle.location} zoom={15} />

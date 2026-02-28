@@ -1,10 +1,61 @@
 import React from 'react';
-import { AlertTriangle, Gauge, Clock, TrendingUp, ChevronLeft, Zap, Shield, Trash2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { AlertTriangle, Gauge, Clock, TrendingUp, ChevronLeft, Zap, Shield, Trash2, Download } from 'lucide-react';
 
 const SpeedDashboard = ({ fleet, speedingLog, speedLimit, onSetLimit, onClearLog }) => {
-    const SPEED_LIMITS = {
-        city: 60,
-        highway: 80
+    const SPEED_LIMITS = { city: 60, highway: 80 };
+
+    const exportToExcel = () => {
+        const wb = XLSX.utils.book_new();
+
+        // Sheet 1: Speed violations
+        const excesosData = speedingLog.map(a => ({
+            'Placa': a.vehicleId,
+            'Conductor': a.driver || 'N/A',
+            'Velocidad (km/h)': a.speed,
+            'Límite (km/h)': a.limit,
+            'Exceso (km/h)': a.excess,
+            'Hora': a.time,
+            'Fecha': new Date(a.timestamp).toLocaleDateString('es-CO')
+        }));
+        if (excesosData.length > 0) {
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(excesosData), 'Excesos de Velocidad');
+        }
+
+        // Sheet 2: Route history from localStorage
+        const posicionesData = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key?.startsWith('route_')) {
+                const parts = key.split('_');
+                const fecha = parts[parts.length - 1];
+                const placa = parts.slice(1, -1).join('_');
+                try {
+                    const puntos = JSON.parse(localStorage.getItem(key)) || [];
+                    puntos.forEach(p => {
+                        posicionesData.push({
+                            'Placa': placa,
+                            'Fecha': fecha,
+                            'Hora': new Date(p.time).toLocaleTimeString('es-CO'),
+                            'Latitud': p.lat,
+                            'Longitud': p.lng,
+                            'Velocidad (km/h)': p.speed || 0
+                        });
+                    });
+                } catch { }
+            }
+        }
+        if (posicionesData.length > 0) {
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(posicionesData), 'Posiciones GPS');
+        }
+
+        if (wb.SheetNames.length === 0) {
+            alert('No hay datos para exportar.');
+            return;
+        }
+
+        const fecha = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `reporte_flota_${fecha}.xlsx`);
     };
 
     const totalAlerts = speedingLog.length;
@@ -113,11 +164,16 @@ const SpeedDashboard = ({ fleet, speedingLog, speedLimit, onSetLimit, onClearLog
                     <h3 style={{ fontSize: '0.85rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
                         Historial de Excesos
                     </h3>
-                    {speedingLog.length > 0 && (
-                        <button onClick={onClearLog} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', fontSize: '0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Trash2 size={12} /> Limpiar
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={exportToExcel} style={{ background: 'transparent', border: 'none', color: 'var(--success)', fontSize: '0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Download size={12} /> Exportar Excel
                         </button>
-                    )}
+                        {speedingLog.length > 0 && (
+                            <button onClick={onClearLog} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', fontSize: '0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Trash2 size={12} /> Limpiar
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {speedingLog.length === 0 ? (
