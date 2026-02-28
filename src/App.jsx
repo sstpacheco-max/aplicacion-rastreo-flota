@@ -45,8 +45,9 @@ function App() {
           // Update local UI immediately for responsiveness
           setFleet([{
             id: auth.username,
-            name: `Conductor: ${auth.driverName}`,
-            driver: auth.username,
+            name: auth.driverName,
+            driver: auth.driverName,
+            plate: auth.username,
             location: [pos.lat, pos.lng],
             speed: pos.speed,
             status: pos.speed > 60 ? 'speeding' : 'active',
@@ -61,8 +62,9 @@ function App() {
             const pos = lastPosRef.current;
             const driverData = {
               id: auth.username,
-              name: `Conductor: ${auth.driverName}`,
-              driver: auth.username,
+              name: auth.driverName,
+              driver: auth.driverName,
+              plate: auth.username,
               location: [pos.lat, pos.lng],
               speed: pos.speed,
               status: pos.speed > 60 ? 'speeding' : 'active',

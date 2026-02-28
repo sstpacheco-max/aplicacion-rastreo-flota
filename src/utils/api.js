@@ -51,9 +51,9 @@ export const apiService = {
                         const vehicleData = JSON.parse(ntfyMsg.message);
                         localFleet[vehicleData.id] = vehicleData;
 
-                        // Filter: only vehicles active in last 2 minutes
+                        // Filter: only vehicles active in last 10 minutes (more lenient for mobile signals)
                         const activeVehicles = Object.values(localFleet).filter(v =>
-                            (Date.now() - v.lastSeen) < 120000
+                            (Date.now() - (v.lastSeen || 0)) < 600000
                         );
                         callback(activeVehicles);
                     }
