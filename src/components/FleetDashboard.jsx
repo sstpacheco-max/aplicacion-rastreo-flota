@@ -1,7 +1,7 @@
 import React from 'react';
 import { Truck, Navigation, AlertTriangle, ShieldCheck, User, MapPin, LogOut, Gauge } from 'lucide-react';
 
-const FleetDashboard = ({ fleet, onSelect, selectedId, onLogout, onSpeedDashboard, speedingLogCount }) => {
+const FleetDashboard = ({ fleet, onSelect, selectedId, onLogout, speedingLogCount, dailyStats }) => {
     const speedingCountNow = fleet.filter(v => v.status === 'speeding').length;
 
     return (
