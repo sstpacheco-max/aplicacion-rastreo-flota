@@ -44,7 +44,7 @@ body {
   width: 350px;
   background: var(--panel-bg);
   backdrop-filter: blur(12px);
-  border-right: 1px solid var(--glass-border);
+  border-left: 1px solid var(--glass-border);
   display: flex;
   flex-direction: column;
   z-index: 1000;

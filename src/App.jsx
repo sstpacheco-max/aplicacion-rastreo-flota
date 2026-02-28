@@ -263,6 +263,12 @@ function App() {
 
   return (
     <div className="app-container">
+      <div className="map-container">
+        <MapView
+          fleet={fleet}
+          selectedVehicle={selectedVehicle}
+        />
+      </div>
       <FleetDashboard
         fleet={fleet}
         onSelect={setSelectedVehicle}
@@ -272,12 +278,6 @@ function App() {
         speedingLogCount={speedingLog.length}
         dailyStats={dailyStats[new Date().toISOString().split('T')[0]] || {}}
       />
-      <div className="map-container">
-        <MapView
-          fleet={fleet}
-          selectedVehicle={selectedVehicle}
-        />
-      </div>
     </div>
   );
 }
