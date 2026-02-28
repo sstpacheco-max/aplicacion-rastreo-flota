@@ -29,37 +29,7 @@ const FleetDashboard = ({ fleet, onSelect, selectedId, onLogout, onSpeedDashboar
                     </div>
                 </div>
 
-                <button onClick={onSpeedDashboard} style={{
-                    width: '100%',
-                    background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(245,158,11,0.15))',
-                    border: '1px solid rgba(239,68,68,0.3)',
-                    borderRadius: '12px',
-                    padding: '12px 16px',
-                    color: 'white',
-                    cursor: 'pointer',
-                    marginBottom: '1rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    fontSize: '0.85rem',
-                    fontWeight: '600',
-                    transition: 'all 0.2s'
-                }}>
-                    <Gauge size={20} color="var(--danger)" />
-                    Control de Velocidad
-                    {speedingLogCount > 0 && (
-                        <span style={{
-                            marginLeft: 'auto',
-                            background: 'var(--danger)',
-                            color: 'white',
-                            borderRadius: '12px',
-                            padding: '2px 8px',
-                            fontSize: '0.7rem'
-                        }}>{speedingLogCount}</span>
-                    )}
-                </button>
-
-                <h3 style={{ fontSize: '0.875rem', color: 'var(--text-dim)', marginBottom: '1rem', textTransform: 'uppercase' }}>
+                <h3 style={{ fontSize: '0.85rem', marginBottom: '1rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Vehículos Activos
                 </h3>
 

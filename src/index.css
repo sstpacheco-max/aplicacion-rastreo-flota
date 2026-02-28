@@ -39,16 +39,24 @@ body {
   width: 100%;
 }
 
-/* Glassmorphism Sidebar */
-.sidebar {
-  width: 350px;
+/* Glassmorphism Sidebars */
+.sidebar,
+.sidebar-right {
+  width: 320px;
   background: var(--panel-bg);
   backdrop-filter: blur(12px);
-  border-left: 1px solid var(--glass-border);
   display: flex;
   flex-direction: column;
   z-index: 1000;
   transition: transform 0.3s ease;
+}
+
+.sidebar {
+  border-right: 1px solid var(--glass-border);
+}
+
+.sidebar-right {
+  border-left: 1px solid var(--glass-border);
 }
 
 .map-container {

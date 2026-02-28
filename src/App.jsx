@@ -248,35 +248,28 @@ function App() {
   }
 
   // --- Admin Dashboard Rendering ---
-  if (adminView === 'speed') {
-    return (
-      <SpeedDashboard
-        fleet={fleet}
-        onBack={() => setAdminView('map')}
-        speedingLog={speedingLog}
-        speedLimit={speedLimit}
-        onSetLimit={(l) => setSpeedLimit(l)}
-        onClearLog={handleClearLog}
-      />
-    );
-  }
-
   return (
     <div className="app-container">
+      <FleetDashboard
+        fleet={fleet}
+        onSelect={setSelectedVehicle}
+        selectedId={selectedVehicle?.id}
+        onLogout={handleLogout}
+        speedingLogCount={speedingLog.length}
+        dailyStats={dailyStats[new Date().toISOString().split('T')[0]] || {}}
+      />
       <div className="map-container">
         <MapView
           fleet={fleet}
           selectedVehicle={selectedVehicle}
         />
       </div>
-      <FleetDashboard
+      <SpeedDashboard
         fleet={fleet}
-        onSelect={setSelectedVehicle}
-        selectedId={selectedVehicle?.id}
-        onLogout={handleLogout}
-        onSpeedDashboard={() => setAdminView('speed')}
-        speedingLogCount={speedingLog.length}
-        dailyStats={dailyStats[new Date().toISOString().split('T')[0]] || {}}
+        speedingLog={speedingLog}
+        speedLimit={speedLimit}
+        onSetLimit={(l) => setSpeedLimit(l)}
+        onClearLog={handleClearLog}
       />
     </div>
   );
