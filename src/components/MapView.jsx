@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import * as Esri from 'esri-leaflet';
 
 // Fix for default marker icons in Leaflet + Vite
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -55,6 +56,70 @@ const BASEMAPS = {
     }
 };
 
+// === OVERLAY DEFINITIONS (ANSV & INVIAS) ===
+const OVERLAYS = {
+    ansv_siniestros: {
+        id: 'ansv_siniestros',
+        name: 'Siniestralidad Vial (Puntos)',
+        url: 'https://services9.arcgis.com/cCK0fP0sWCjveNe8/arcgis/rest/services/ServicioML/FeatureServer/1',
+        attribution: '&copy; ANSV Colombia',
+        type: 'feature',
+        icon: '⚠️'
+    },
+    ansv_mortalidad: {
+        id: 'ansv_mortalidad',
+        name: 'Mortalidad por Municipio',
+        url: 'https://services9.arcgis.com/cCK0fP0sWCjveNe8/arcgis/rest/services/MortalidadMunicipio/FeatureServer/23',
+        attribution: '&copy; ANSV Colombia',
+        type: 'feature',
+        icon: '📊'
+    },
+    ansv_irap: {
+        id: 'ansv_irap',
+        name: 'Seguridad Vías (iRAP)',
+        url: 'https://services9.arcgis.com/cCK0fP0sWCjveNe8/arcgis/rest/services/IRAP_Colombia_2023/FeatureServer/0',
+        attribution: '&copy; iRAP / ANSV',
+        type: 'feature',
+        icon: '⭐'
+    },
+    invias_postes: {
+        id: 'invias_postes',
+        name: 'Postes Kilométricos (INVIAS)',
+        url: 'https://hermes.invias.gov.co/arcgis/rest/services/Mapa_Carreteras/Mapa_de_Carreteras/MapServer/0',
+        attribution: '&copy; INVIAS Colombia',
+        type: 'feature',
+        icon: '📍'
+    }
+};
+
+// Custom Esri Layer bridge for React-Leaflet
+const EsriLayer = ({ type, url, attribution, opacity = 0.8 }) => {
+    const map = useMap();
+
+    useEffect(() => {
+        let layer;
+        if (type === 'feature') {
+            layer = Esri.featureLayer({
+                url,
+                attribution,
+                opacity
+            }).addTo(map);
+        } else if (type === 'dynamic') {
+            layer = Esri.dynamicMapLayer({
+                url,
+                attribution,
+                opacity
+            }).addTo(map);
+        }
+
+        return () => {
+            if (layer) map.removeLayer(layer);
+        };
+    }, [map, type, url, attribution, opacity]);
+
+    return null;
+};
+
 // Custom vehicle icons based on status
 const getVehicleIcon = (status) => {
     const color = status === 'speeding' ? '#ef4444' : '#3b82f6';
@@ -79,7 +144,7 @@ function ChangeView({ center, zoom }) {
 }
 
 // Basemap Switcher Component
-const BasemapSwitcher = ({ activeBasemap, onSwitch }) => {
+const BasemapSwitcher = ({ activeBasemap, onSwitch, activeOverlays, onToggleOverlay }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     return (
@@ -93,7 +158,7 @@ const BasemapSwitcher = ({ activeBasemap, onSwitch }) => {
             {/* Toggle Button */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                title="Cambiar mapa base"
+                title="Capas y mapas"
                 style={{
                     width: '42px',
                     height: '42px',
@@ -122,9 +187,11 @@ const BasemapSwitcher = ({ activeBasemap, onSwitch }) => {
                     backdropFilter: 'blur(16px)',
                     borderRadius: '14px',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    padding: '10px',
+                    padding: '12px',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                    width: '180px',
+                    width: '220px',
+                    maxHeight: '80vh',
+                    overflowY: 'auto',
                     animation: 'fadeIn 0.2s ease'
                 }}>
                     <div style={{
@@ -137,22 +204,59 @@ const BasemapSwitcher = ({ activeBasemap, onSwitch }) => {
                     }}>
                         Mapa Base
                     </div>
-                    {Object.entries(BASEMAPS).map(([key, basemap]) => (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '16px' }}>
+                        {Object.entries(BASEMAPS).map(([key, basemap]) => (
+                            <button
+                                key={key}
+                                onClick={() => onSwitch(key)}
+                                title={basemap.name}
+                                style={{
+                                    height: '40px',
+                                    borderRadius: '8px',
+                                    background: basemap.preview,
+                                    border: activeBasemap === key
+                                        ? '2px solid #3b82f6'
+                                        : '2px solid transparent',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '1.1rem',
+                                    transition: 'transform 0.1s ease',
+                                    opacity: activeBasemap === key ? 1 : 0.6
+                                }}
+                            >
+                                {basemap.icon}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div style={{
+                        fontSize: '0.65rem',
+                        color: 'rgba(255,255,255,0.5)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px',
+                        marginBottom: '8px',
+                        paddingLeft: '4px',
+                        borderTop: '1px solid rgba(255,255,255,0.08)',
+                        paddingTop: '12px'
+                    }}>
+                        Capas de Seguridad (ANSV)
+                    </div>
+                    {Object.entries(OVERLAYS).map(([key, overlay]) => (
                         <button
                             key={key}
-                            onClick={() => { onSwitch(key); setIsOpen(false); }}
+                            onClick={() => onToggleOverlay(key)}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '10px',
                                 width: '100%',
                                 padding: '8px 10px',
-                                border: activeBasemap === key
-                                    ? '1.5px solid rgba(59, 130, 246, 0.7)'
-                                    : '1.5px solid transparent',
-                                borderRadius: '10px',
-                                background: activeBasemap === key
-                                    ? 'rgba(59, 130, 246, 0.15)'
+                                border: '1px solid transparent',
+                                borderRadius: '8px',
+                                background: activeOverlays.includes(key)
+                                    ? 'rgba(59, 130, 246, 0.2)'
                                     : 'transparent',
                                 color: '#fff',
                                 cursor: 'pointer',
@@ -162,37 +266,37 @@ const BasemapSwitcher = ({ activeBasemap, onSwitch }) => {
                             }}
                         >
                             <div style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '7px',
-                                background: basemap.preview,
+                                width: '24px',
+                                height: '24px',
+                                borderRadius: '5px',
+                                background: activeOverlays.includes(key) ? '#3b82f6' : 'rgba(255,255,255,0.05)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '0.9rem',
-                                flexShrink: 0,
-                                border: '1px solid rgba(255,255,255,0.1)'
+                                fontSize: '0.8rem',
+                                flexShrink: 0
                             }}>
-                                {basemap.icon}
+                                {overlay.icon}
                             </div>
                             <span style={{
-                                fontSize: '0.75rem',
-                                fontWeight: activeBasemap === key ? 600 : 400,
-                                opacity: activeBasemap === key ? 1 : 0.8
+                                fontSize: '0.7rem',
+                                fontWeight: activeOverlays.includes(key) ? 600 : 400,
+                                opacity: activeOverlays.includes(key) ? 1 : 0.7
                             }}>
-                                {basemap.name}
+                                {overlay.name}
                             </span>
                         </button>
                     ))}
+
                     <div style={{
-                        marginTop: '6px',
-                        paddingTop: '6px',
+                        marginTop: '10px',
+                        paddingTop: '10px',
                         borderTop: '1px solid rgba(255,255,255,0.08)',
                         fontSize: '0.55rem',
                         color: 'rgba(255,255,255,0.3)',
                         textAlign: 'center'
                     }}>
-                        Powered by ArcGIS & CARTO
+                        Datos: ANSV, INVIAS, ArcGIS
                     </div>
                 </div>
             )}
@@ -202,7 +306,14 @@ const BasemapSwitcher = ({ activeBasemap, onSwitch }) => {
 
 const MapView = ({ fleet, selectedVehicle, routePolyline }) => {
     const [activeBasemap, setActiveBasemap] = useState('carto_dark');
+    const [activeOverlays, setActiveOverlays] = useState([]);
     const currentBasemap = BASEMAPS[activeBasemap];
+
+    const toggleOverlay = (id) => {
+        setActiveOverlays(prev =>
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        );
+    };
 
     return (
         <div style={{ position: 'relative', height: '100%', width: '100%' }}>
@@ -213,6 +324,7 @@ const MapView = ({ fleet, selectedVehicle, routePolyline }) => {
                 style={{ height: '100%', width: '100%' }}
                 zoomControl={false}
             >
+                {/* Base Map Layer */}
                 <TileLayer
                     key={activeBasemap}
                     attribution={currentBasemap.attribution}
@@ -220,13 +332,26 @@ const MapView = ({ fleet, selectedVehicle, routePolyline }) => {
                     maxZoom={19}
                 />
 
-                {/* ArcGIS Satellite labels overlay */}
+                {/* Satellite Labels Overlay */}
                 {activeBasemap === 'arcgis_satellite' && (
                     <TileLayer
                         url="https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
                         maxZoom={19}
+                        pane="markerPane" // Ensure labels are on top of images
+                        zIndex={10}
                     />
                 )}
+
+                {/* Active Overlays (ANSV / INVIAS) using EsriLayer bridge */}
+                {activeOverlays.map(id => (
+                    <EsriLayer
+                        key={id}
+                        type={OVERLAYS[id].type}
+                        url={OVERLAYS[id].url}
+                        attribution={OVERLAYS[id].attribution}
+                        opacity={0.8}
+                    />
+                ))}
 
                 {fleet.map(vehicle => (
                     <Marker
@@ -257,10 +382,11 @@ const MapView = ({ fleet, selectedVehicle, routePolyline }) => {
             <BasemapSwitcher
                 activeBasemap={activeBasemap}
                 onSwitch={setActiveBasemap}
+                activeOverlays={activeOverlays}
+                onToggleOverlay={toggleOverlay}
             />
         </div>
     );
 }
 
 export default MapView;
-
