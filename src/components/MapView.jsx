@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import * as Esri from 'esri-leaflet';
+import 'leaflet.heat';
 
 // Fix for default marker icons in Leaflet + Vite
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -60,11 +61,11 @@ const BASEMAPS = {
 const OVERLAYS = {
     ansv_siniestros: {
         id: 'ansv_siniestros',
-        name: 'Siniestralidad Vial (Puntos)',
+        name: 'Mapa de Calor Accidents (ANSV)',
         url: 'https://services9.arcgis.com/cCK0fP0sWCjveNe8/arcgis/rest/services/ServicioML/FeatureServer/1',
         attribution: '&copy; ANSV Colombia',
-        type: 'feature',
-        icon: '⚠️'
+        type: 'heatmap',
+        icon: '🔥'
     },
     ansv_mortalidad: {
         id: 'ansv_mortalidad',
@@ -90,6 +91,46 @@ const OVERLAYS = {
         type: 'feature',
         icon: '📍'
     }
+};
+
+// Heatmap Layer using leaflet.heat
+const HeatmapLayer = ({ url, attribution }) => {
+    const map = useMap();
+
+    useEffect(() => {
+        const heatLayer = L.heatLayer([], {
+            radius: 20,
+            blur: 15,
+            maxZoom: 15,
+            gradient: { 0.4: 'rgba(0, 0, 255, 0.7)', 0.6: 'rgba(0, 255, 255, 0.8)', 0.8: 'rgba(255, 255, 0, 0.9)', 1.0: 'rgba(255, 0, 0, 1)' }
+        }).addTo(map);
+
+        // Fetch points via FeatureLayer (internal query) to get heatmap data
+        const queryLayer = Esri.featureLayer({
+            url: url,
+            attribution: attribution,
+            pointToLayer: (geojson, latlng) => null, // Don't show markers
+            style: () => ({ opacity: 0, fillOpacity: 0 })
+        });
+
+        queryLayer.on('load', () => {
+            const points = [];
+            queryLayer.eachFeature((layer) => {
+                const latlng = layer.getLatLng();
+                points.push([latlng.lat, latlng.lng, 0.6]);
+            });
+            heatLayer.setLatLngs(points);
+        });
+
+        queryLayer.addTo(map);
+
+        return () => {
+            map.removeLayer(heatLayer);
+            map.removeLayer(queryLayer);
+        };
+    }, [map, url, attribution]);
+
+    return null;
 };
 
 // Custom Esri Layer bridge for React-Leaflet
@@ -342,16 +383,28 @@ const MapView = ({ fleet, selectedVehicle, routePolyline }) => {
                     />
                 )}
 
-                {/* Active Overlays (ANSV / INVIAS) using EsriLayer bridge */}
-                {activeOverlays.map(id => (
-                    <EsriLayer
-                        key={id}
-                        type={OVERLAYS[id].type}
-                        url={OVERLAYS[id].url}
-                        attribution={OVERLAYS[id].attribution}
-                        opacity={0.8}
-                    />
-                ))}
+                {/* Active Overlays (ANSV / INVIAS) using EsriLayer bridge or Heatmap */}
+                {activeOverlays.map(id => {
+                    const overlay = OVERLAYS[id];
+                    if (overlay.type === 'heatmap') {
+                        return (
+                            <HeatmapLayer
+                                key={id}
+                                url={overlay.url}
+                                attribution={overlay.attribution}
+                            />
+                        );
+                    }
+                    return (
+                        <EsriLayer
+                            key={id}
+                            type={overlay.type}
+                            url={overlay.url}
+                            attribution={overlay.attribution}
+                            opacity={0.8}
+                        />
+                    );
+                })}
 
                 {fleet.map(vehicle => (
                     <Marker
